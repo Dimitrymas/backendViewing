@@ -1,9 +1,19 @@
 import uuid
 
 from fastapi import FastAPI
+from starlette.middleware.cors import CORSMiddleware
 from starlette.websockets import WebSocket
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 rooms = []
 
@@ -69,12 +79,7 @@ class Client:
 async def root() -> dict:
     room = Room()
     rooms.append(room)
-    return {"status": "ok", "room_id": room.id}
-
-
-@app.get("/get_rooms")
-async def get_rooms() -> dict:
-    return [room.json() for room in rooms]
+    return {"id": room.id}
 
 
 async def send_to_room(room, data):
