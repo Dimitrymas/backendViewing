@@ -23,11 +23,13 @@ class Link:
     def __init__(self, url):
         self.url = url
         self.id = str(uuid.uuid4())
+        self.is_playing = False
 
     def json(self):
         return {
             "id": self.id,
-            "url": self.url
+            "url": self.url,
+            "is_playing": self.is_playing
         }
 
 
@@ -40,13 +42,37 @@ class Room:
         self.messages = []
         self.playing = False
 
+    def __stop_links(self):
+        for i in self.links:
+            i.is_playing = False
+
     def add_link(self, link):
+        self.__stop_links()
         self.links.append(Link(link))
+        if self.current_link == 0:
+            self.links[0].is_playing = True
+
+    def next_link(self):
+        self.__stop_links()
+        self.playing = False
+        if self.current_link + 1 < len(self.links):
+            self.current_link += 1
+            self.current_time = 0
+            self.links[self.current_link].is_playing = True
 
     def get_current_link(self):
         if len(self.links) == 0:
             return ''
         return self.links[self.current_link].url
+
+    def choice_link(self, link_id):
+        self.__stop_links()
+        for i, link in enumerate(self.links):
+            if link.id == link_id:
+                self.current_link = i
+                self.current_time = 0
+                self.playing = False
+                link.is_playing = True
 
     def json(self):
         return {
@@ -109,15 +135,20 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
                 case "refresh":
                     client.room.playing = False
                 case "play_link":
-                    url = data["url"]
-                    if url in [link.url for link in client.room.links]:
-                        client.room.current_link = [link.url for link in client.room.links].index(url)
-                        client.room.current_time = 0
-                        client.room.playing = False
+                    client.room.choice_link(data["id"])
                 case "add_link":
                     client.room.add_link(data["url"])
+                case "end":
+                    client.room.next_link()
                 case "delete_link":
-                    client.room.links = [link for link in client.room.links if link.id != data['id']]
+                    link = [link for link in client.room.links if link.id == data['id']][0]
+                    link_index = client.room.links.index(link)
+                    client.room.links.remove(link)
+                    if link.is_playing:
+                        if link_index + 1 < len(client.room.links):
+                            client.room.next_link()
+                        else:
+                            client.room.playing = False
                 case "play":
                     client.room.playing = True
                 case "pause":
